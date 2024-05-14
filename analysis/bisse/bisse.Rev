@@ -1,0 +1,106 @@
+###
+# read data
+
+# get the tree
+tree <- readTrees(file = data_dir + "trees/ultrametric/tree_ultra_" + rep + ".nex")[1]
+
+# get root age
+root_age <- tree.rootAge()
+
+# get the taxa list
+taxa <- tree.taxa()
+
+# check whether we want the real trait or a neutral one
+if (traitRef == "real") {
+  trait_file <- data_dir + "traits/ultrametric/real_ultra_" + rep + ".nex"
+} else {
+  trait_file <- data_dir + "traits/ultrametric/neutral/" + traitRef + "/neutral_" + traitRef + "_ultra_" + rep + ".nex"
+}
+
+# and get character data
+data <- readCharacterData(file = trait_file)
+
+# get the number of taxa
+num_taxa <- taxa.size()
+
+# set number of states
+num_states <- 2
+
+# create workspace objects for moves and monitors
+moves = VectorMoves()
+monitors = VectorMonitors()
+
+###
+# set the model
+
+# set a separate variable for each speciation and extinction rate
+for (i in 1:num_states) {
+  # set loguniform priors for each of the rates
+  lambda[i] ~ dnLoguniform(1E-6, 1E2)
+  mu[i] ~ dnLoguniform(1E-6, 1E2)
+
+  # set initial value to avoid it getting stuck in weirdly high values
+  lambda[i].setValue(1)
+  mu[i].setValue(1)
+
+  # append moves 
+  moves.append(mvScale(lambda[i], weight = 3.0))
+  moves.append(mvScale(mu[i], weight = 3.0))
+}
+
+# set transition rate prior mean to close to the true value 
+rate_pr <- 1/0.01
+
+# set the rate priors with mean above
+for (i in 1:num_states*(num_states - 1)) {
+  # set q with an exponential prior with mean equal to the true value
+  q[i] ~ dnExp(rate_pr)
+
+  # set initial value so it doesn't get stuck
+  q[i].setValue(1)
+
+  # append moves 
+  moves.append(mvScale(q[i], weight = 3.0))
+}
+
+# create the rate matrix
+Q := fnFreeBinary(q, rescaled = false)
+
+# set root state frequencies to a simple Dirichlet prior
+pi ~ dnDirichlet(rep(1, num_states))
+moves.append(mvDirichletSimplex(pi, weight = 5.0))
+
+# sampling at present
+rho <- Probability(1)
+
+# set the bisse fbd tree
+timetree ~ dnGLHBDSP(rootAge = root_age, lambda = lambda, mu = mu, eta = Q, pi = pi, taxa = taxa, rho = rho, nStates = num_states)
+
+# clamp it to the data
+timetree.clamp(tree)
+
+timetree.clampCharData(data)
+
+# create our model object
+mymodel = model(timetree)
+
+###
+# set up monitors and run analysis
+
+# output file names
+out_name <- "output/bisse/" + psiRef + "/" + parRef + "/" + modelRef + "/" + traitRef + "/" +  "/rep_" + rep + "/"
+
+# append monitor to log
+monitors.append(mnModel(filename = out_name + "bisse.log", printgen = 100))
+
+# and to screen
+monitors.append(mnScreen(printgen = 1000))
+
+# creates mcmc object
+mymcmc = mcmc(mymodel, monitors, moves)
+
+# run mcmc
+mymcmc.run(generations = 100000, tuningInterval = 200, checkpointInterval = 1000, checkpointFile = out_name + "/checkpoint/bisse.state")
+
+# quit
+q()

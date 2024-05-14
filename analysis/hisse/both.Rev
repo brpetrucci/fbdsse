@@ -1,0 +1,120 @@
+###
+# read data
+
+# get the tree
+tree <- readTrees(file = data_dir + "trees/fbd/tree_fbd_" + rep + ".nex")[1]
+
+# get root age
+root_age <- tree.rootAge()
+
+# get the taxa list
+taxa <- tree.taxa()
+
+# check whether we want the real trait or a neutral one
+if (traitRef == "real") {
+  trait_file <- data_dir + "traits/fbd/real_fbd_" + rep + ".nex"
+} else {
+  trait_file <- data_dir + "traits/fbd/neutral/" + traitRef + "/neutral_" + traitRef + "_fbd_" + rep + ".nex"
+}
+
+# and get character data
+data <- readCharacterData(file = trait_file)
+
+# get the number of taxa
+num_taxa <- taxa.size()
+
+# set number of states
+num_states <- 2
+num_hidden <- 2
+num_rates <- num_states * num_hidden
+
+# expand the data
+data_exp <- data.expandCharacters(num_hidden)
+
+# create workspace objects for moves and monitors
+moves = VectorMoves()
+monitors = VectorMonitors()
+
+###
+# set the model
+
+# set a separate variable for each observed and hidden speciation, extinction, and fossil sampling rate
+for (i in 1:num_rates) {
+  # set loguniform priors for each of the rates
+  lambda[i] ~ dnLoguniform(1E-6, 1E2)
+  mu[i] ~ dnLoguniform(1E-6, 1E2)
+  phi[i] ~ dnLoguniform(1E-6, 1E2)
+
+  # set value so it doesn't get stuck
+  lambda[i].setValue(1)
+  mu[i].setValue(1)
+  phi[i].setValue(1)
+
+  # append moves 
+  moves.append(mvScale(lambda[i], weight = 3.0))
+  moves.append(mvScale(mu[i], weight = 3.0))
+  moves.append(mvScale(phi[i], weight = 3.0))
+}
+
+# set transition rate prior mean to close to the true value 
+rate_pr <- 1/0.01
+
+# set the rate priors with mean above
+for (i in 1:num_states*(num_states - 1)) {
+  # set q with an exponential prior with mean equal to the true value
+  q_obs[i] ~ dnExp(rate_pr)
+  q_hidden[i] ~ dnExp(rate_pr)
+
+  # set values so it doesn't get stuck
+  q_obs[i].setValue(1)
+  q_hidden[i].setValue(1)
+
+  # append moves 
+  moves.append(mvScale(q_obs[i], weight = 3.0))
+  moves.append(mvScale(q_hidden[i], weight = 3.0))
+}
+
+# create the rate matrix
+Q := fnHiddenStateRateMatrix(q_obs, q_hidden, rescaled = false) 
+
+# set root state frequencies to a simple Dirichlet prior
+pi ~ dnDirichlet(rep(1, num_rates))
+moves.append(mvDirichletSimplex(pi, weight = 5.0))
+
+# sampling at present
+rho <- Probability(1)
+
+# root age
+root_age <- tree.rootAge()
+
+# set the bisse fbd tree
+timetree ~ dnGLHBDSP(rootAge = root_age, lambda = lambda, mu = mu, eta = Q, pi = pi, phi = phi, taxa = taxa, rho = rho, nStates = num_rates)
+
+# clamp it to the data
+timetree.clamp(tree)
+
+timetree.clampCharData(data_exp)
+
+# create our model object
+mymodel = model(timetree)
+
+###
+# set up monitors and run analysis
+
+# output file names
+out_name <- "output/hisse/" + psiRef + "/" + parRef + "/" + modelRef + "/" + traitRef + "/" +  "/rep_" + rep + "/"
+
+# append monitor to log
+monitors.append(mnModel(filename = out_name + "hisse.log", printgen = 100))
+
+# and to screen
+monitors.append(mnScreen(printgen = 1000))
+
+# creates mcmc object
+mymcmc = mcmc(mymodel, monitors, moves)
+
+# run mcmc
+mymcmc.run(generations = 100000, tuningInterval = 200, checkpointInterval = 1000, checkpointFile = out_name + "/checkpoint/hisse" + rep + ".state")
+
+# quit
+q()

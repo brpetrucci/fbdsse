@@ -1,0 +1,73 @@
+###
+# read data
+
+# get the tree
+tree <- readTrees(file = data_dir + "trees/fbd/tree_fbd_" + rep + ".nex")[1]
+
+# get root age
+root_age <- tree.rootAge()
+
+# get the taxa list
+taxa <- tree.taxa()
+
+# get the number of taxa
+num_taxa <- taxa.size()
+
+# create workspace objects for moves and monitors
+moves = VectorMoves()
+monitors = VectorMonitors()
+
+###
+# set the model
+
+# set loguniform priors for each of the rates
+lambda ~ dnLoguniform(1E-6, 1E2)
+mu ~ dnLoguniform(1E-6, 1E2)
+phi ~ dnLoguniform(1E-6, 1E2)
+
+# set initial values to make sure it doesn't get stuck on super high ones
+lambda.setValue(1)
+mu.setValue(1)
+phi.setValue(1)
+
+# append moves 
+moves.append(mvScale(lambda, weight = 3.0))
+moves.append(mvScale(mu, weight = 3.0))
+moves.append(mvScale(phi, weight = 3.0))
+
+# sampling at present
+rho <- Probability(1)
+
+# state transition rate--since this is state-independent, just 1
+eta <- 1.0 
+
+# set the bisse fbd tree
+timetree ~ dnGLHBDSP(rootAge = root_age, lambda = v(lambda, lambda), mu = v(mu, mu), phi = v(phi, phi), eta = eta, pi = Simplex(1, 1), taxa = taxa, rho = rho, nStates = 2)
+
+# clamp it to the data
+timetree.clamp(tree)
+
+# create our model object
+mymodel = model(timetree)
+
+###
+# set up monitors and run analysis
+
+# output file names
+out_name <- "output/hisse/" + psiRef + "/" + parRef + "/" + modelRef + "/" + "/rep_" + rep + "/"
+
+# append monitor to log
+monitors.append(mnModel(filename = out_name + "hisse.log", printgen = 100))
+
+# and to screen
+monitors.append(mnScreen(printgen = 1000))
+
+# creates mcmc object
+mymcmc = mcmc(mymodel, monitors, moves)
+
+# run mcmc
+mymcmc.run(generations = 100000, tuningInterval = 200, checkpointInterval = 1000, checkpointFile = out_name + "/checkpoint/hisse" + rep + ".state")
+
+# quit
+q()
+

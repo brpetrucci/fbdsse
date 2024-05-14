@@ -1,0 +1,72 @@
+
+Birth-death simulation object with 118 species and 100 extant species
+
+Details for some species:
+
+Extinction times (NA means extant)
+[1]  6.580314        NA 25.243212        NA        NA  9.248673
+
+
+Speciation times 
+[1] 38.37403 38.24616 37.28748 13.92426 26.13520 24.04052
+
+
+Species parents (NA for initial)
+[1] NA  1  1  1  2  2
+
+
+Species status (extinct or extant)
+[1] "extinct" "extant"  "extinct" "extant"  "extant"  "extinct"
+
+
+For more details on vector y, try sim$y, with y one of
+TE TS PAR EXTANT
+
+
+
+$TE
+  [1]  6.5803135         NA 25.2432120         NA         NA  9.2486726 15.5201973         NA         NA         NA
+ [11] 16.1262842         NA         NA         NA 14.9161573         NA 22.3623584         NA         NA  4.6812351
+ [21]         NA 19.5088736  8.3790900         NA         NA         NA         NA         NA         NA 12.6783401
+ [31]         NA         NA         NA         NA         NA         NA         NA         NA  7.4681934         NA
+ [41]         NA  8.0026516         NA         NA         NA         NA         NA         NA         NA         NA
+ [51]         NA         NA         NA         NA         NA  5.8653724         NA         NA         NA         NA
+ [61]         NA         NA         NA         NA         NA         NA         NA         NA         NA         NA
+ [71]  0.1069485  4.5373463         NA         NA         NA         NA         NA         NA         NA         NA
+ [81]         NA         NA         NA         NA  2.7707472  3.0635802         NA         NA         NA         NA
+ [91]         NA         NA         NA         NA         NA         NA         NA         NA         NA         NA
+[101]         NA         NA         NA         NA         NA         NA         NA         NA         NA         NA
+[111]         NA         NA         NA         NA         NA         NA         NA         NA
+
+$TS
+  [1] 38.37403338 38.24616191 37.28748252 13.92426121 26.13519580 24.04052013 17.81071882 15.73819599  4.75873259
+ [10] 32.41685512 27.30399889  4.33929956  1.73589991 20.45689218 18.38506348 16.59125849 23.41044905 17.58259435
+ [19] 13.89976862 11.76449947  3.35626260 22.87438082 17.37289468 20.21187102 11.01531053 12.56700240  9.56131332
+ [28]  5.56977785  1.98494805 14.57716363 12.38885765  2.76838949  0.33150880 11.54408763 10.71894583  2.44665159
+ [37]  4.47925445  3.44658710 12.19722658  8.62443811 11.59946806  8.33625507  8.12052377  8.19431856  9.53854583
+ [46]  6.79390809  4.25969595  6.01923400  5.84008480  9.91672377  7.60042311  7.31507349  2.22998239  9.13156254
+ [55]  8.35519657  8.83218951  8.62363984  8.52472654  2.85173651  7.99247301  8.02960493  7.29534980  4.94592804
+ [64]  1.76869468  8.32923502  6.16108637  3.77718771  0.62622409  6.11003707  5.04950917  3.43231547  6.60049001
+ [73]  5.63314958  0.93770881  1.15781910  4.90386153  1.08370182  0.63799167  6.55230853  6.12883001  2.42392301
+ [82]  0.67452078  0.97471443  5.63891375  4.09843421  4.30130375  2.12423254  5.11130040  1.37825395  4.67088092
+ [91]  3.89988960  4.28961473  3.81892158  3.30263475  2.96933066  2.68658759  0.93695557  4.02084079  2.75945447
+[100]  2.38570427  1.84490967  2.24838692  1.42773879  2.24143094  1.52308791  0.48061771  0.17852168  0.73697796
+[109]  1.20718209  1.32586604  2.21448853  1.99390140  0.01981294  0.13605578  1.14765841  0.11420984  0.81797429
+[118]  0.33115677
+
+$PAR
+  [1]  NA   1   1   1   2   2   2   2   2   3   3  10  10  11  11  11   5   5   5   5   5   6   6  14  24  18  18  18
+ [29]  18  23  23  16  16   8   8   8   4   4  19  19  26  39  39  20  41  41  41  34  34  25  25  25  25  35  27  45
+ [57]  45  45  45  56  40  57  57  57  58  58  58  55  44  44  43  61  60  52  62  46  46  46  72  66  66  66  80  69
+ [85]  69  49  49  28  28  88  88  70  70  70  76  76  76  37  92  92  92  47  47  38  21  21  94  59  99  96  81  81
+[113] 111  87  89  75  77  97
+
+$EXTANT
+  [1] FALSE  TRUE FALSE  TRUE  TRUE FALSE FALSE  TRUE  TRUE  TRUE FALSE  TRUE  TRUE  TRUE FALSE  TRUE FALSE  TRUE
+ [19]  TRUE FALSE  TRUE FALSE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+ [37]  TRUE  TRUE FALSE  TRUE  TRUE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+ [55]  TRUE FALSE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE FALSE
+ [73]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE FALSE FALSE  TRUE  TRUE  TRUE  TRUE
+ [91]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+[109]  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE  TRUE
+

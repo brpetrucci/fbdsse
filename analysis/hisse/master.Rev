@@ -1,0 +1,32 @@
+##########################################
+##   Hidden State Speciation-Extinction ##
+##  Testing SSE models with fossil data ##
+##               Chapter 1              ##
+##      Bruno do Rosario Petrucci       ##
+##########################################
+
+###
+# get tensorPhylo
+loadPlugin("TensorPhylo", "/work/LAS/phylo-lab/petrucci/tensorphylo/build/installer/lib")
+
+# psi reference
+psiRefs <- v("1_low_psi", "2_med_psi", "3_high_psi")
+psiRef <- psiRefs[psiComb]
+
+# parameter reference
+parRefs <- v("1_base", "2_high_lambda1", "3_high_mu0", "4_low_q10", "5_high_lambda1B", "6_low_mu0B")
+parRef <- parRefs[parComb]
+
+# model reference
+modelRefs <- v("fbd", "hisse", "both")
+modelRef <- modelRefs[modelComb]
+
+# trait reference
+traitRefs <- v("real", "low", "mid", "high")
+traitRef <- traitRefs[traitComb]
+
+# data directory
+data_dir <- "simulation/hisse/replicates/" + psiRef + "/" + parRef + "/"
+
+# source relevant script
+source("analysis/hisse/" + modelRef + ".Rev")
