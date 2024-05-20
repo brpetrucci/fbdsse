@@ -113,7 +113,7 @@ for (i in 2:nrow(key)) {
 # auxiliary functions
 
 # make a make.phylo output usable by FBD in RevBayes
-# credit: Joshua Justison
+# credit: Dr. Joshua Justison
 collapseFossils <- function(tree) {
   # number of tips in the original tree
   nTips <- length(tree$tip.label)
