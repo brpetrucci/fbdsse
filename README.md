@@ -1,5 +1,5 @@
 # FBD+SSE
-Repo holding simulation and analysis scripts for the simulation study testing SSE models on trees with fossil samples, to be published on the upcoming Yule 100 year anniversary issue of Phil Trans B. Here we ran trait-dependent diversification simulations using the R package [paleobuddy](https://github.com/brpetrucci/paleobuddy), generated phylogenetic trees with and without fossil samples, and then ran BiSSE analyses on [RevBayes](https://github.com/revbayes/revbayes) on both types of trees to assess the impact of including fossils on diversification rate estimates. See the manuscript for more details.
+Repo holding simulation and analysis scripts for the simulation study testing SSE models on trees with fossil samples. Here we ran trait-dependent diversification simulations using the R package [paleobuddy](https://github.com/brpetrucci/paleobuddy), generated phylogenetic trees with and without fossil samples, and then ran BiSSE analyses on [RevBayes](https://github.com/revbayes/revbayes) on both types of trees to assess the impact of including fossils on diversification rate estimates. See the manuscript for more details.
 
 A detailed description of each file can be found in its respective directory. Here we describe how to reproduce the study. Note that each file is thoroughly commented to guide a user.
 
