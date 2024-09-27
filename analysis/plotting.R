@@ -30,6 +30,9 @@ ess <- list()
 # and create a dataframe to hold comb values for each ref
 refs_df <- data.frame(matrix(nrow = 0, ncol = 4))
 
+# and a data frame to hold fossil number values
+fossil_number <- data.frame(matrix(nrow = 0, ncol = 5))
+
 # number of parameter combinations
 n_refs <- 76
 
@@ -43,12 +46,12 @@ modelRefs <- c("fbd", "bisse", "both")
 traitRefs <- c("real", "low", "mid", "high")
 
 # base directory
-base_dir <- "/Users/petrucci/Documents/research/ssetests_chap1/low_sample_size/"
+base_dir <- "/Users/petrucci/Documents/research/fbdsse/"
 
 # for each combination
 for (i in 1:n_refs) {
   # source the ref in question
-  source(paste0(base_dir, "analysis/bisse/refs/refs_", i, ".Rev"))
+  source(paste0(base_dir, "analysis/refs/refs_", i, ".Rev"))
   
   # if model is 1 (fbd), trait is not necessary, same for 2 (bisse) and psi
   if (modelComb == 1) {
@@ -99,10 +102,48 @@ for (i in 1:n_refs) {
   # put it in the list of logs
   logs[[i]] <- reps
   ess[[i]] <- ess_reps
+  
+  # if statement to make sure we only count once
+  if (modelComb == 3 && traitComb == 1) {
+    # get the directory where the simulations are
+    reps_dir <- paste0(base_dir, "simulation/replicates/", psiRef, "/", 
+                       parRef, "/")
+    
+    # get the average number of fossils for this combo
+    mean_fossil_number <- mean(unlist(lapply(1:n_reps, function(x)
+                            nrow(read.delim(paste0(reps_dir, "fossils/fossils_",
+                                                   x, ".tsv"),
+                                            sep = "\t", header = TRUE)))))
+    
+    # load sim Rdata to check other variables
+    load(paste0(reps_dir, "sim_list.RData"))
+    
+    # get mean number of species
+    mean_species_number <- mean(unlist(lapply(simList, 
+                                              function(x) length(x$TE))))
+    
+    # and mean duration of simulation
+    mean_sim_duration <- mean(unlist(lapply(simList,
+                                            function(x) x$TS[1])))
+    
+    # finally, get the sum of durations just for a sanity check
+    sum_durations <- mean(unlist(lapply(simList, 
+                        function(x) sum(x$TS - ifelse(is.na(x$TE), 0, x$TE)))))
+    
+    # add it to the vector
+    fossil_number <- rbind(fossil_number, c(i, mean_fossil_number, 
+                                            mean_species_number,
+                                            mean_sim_duration,
+                                            sum_durations))
+  }
 }
 
 # name refs
 colnames(refs_df) <- c("psiComb", "parComb", "modelComb", "traitComb")
+
+# and name fossil_number
+colnames(fossil_number) <- c("ref", "mean_fossils", "mean_species",
+                             "mean_sim_duration", "sum_durations")
 
 ###
 ## testing accuracy - BiSSE + FBD
@@ -225,38 +266,6 @@ both_pce <- round(both_pce, digits = 3)
 both_mean$true_psi <- unlist(lapply(1:nrow(both_mean), function(x)
   both_refs$psi[both_refs$comb == both_mean$comb[x]]))
 
-# psi plots
-both_psi <- both_mean[both_mean$comb %in% c(23:25, 35:37, 47:49, 59:61), ]
-both_psi$sce[both_psi$comb %in% c(23:25)] <- 1
-both_psi$sce[both_psi$comb %in% c(35:37)] <- 2
-both_psi$sce[both_psi$comb %in% c(47:49)] <- 3
-both_psi$sce[both_psi$comb %in% c(59:61)] <- 4
-
-both_psi_refs <- both_refs[both_refs$comb %in% c(23:25, 35:37, 47:49, 59:61), ]
-both_psi_refs$sce[both_psi_refs$comb %in% c(23:25)] <- 1
-both_psi_refs$sce[both_psi_refs$comb %in% c(35:37)] <- 2
-both_psi_refs$sce[both_psi_refs$comb %in% c(47:49)] <- 3
-both_psi_refs$sce[both_psi_refs$comb %in% c(59:61)] <- 4
-color_values <- c("#E69F00", "#56B4E9", "#009E73", "#CC79A7")
-
-both_mean_bplot_psi1 <- 
-  ggplot(both_psi, aes(reorder(factor(comb), true_psi, FUN = mean), psi1,
-                       fill = factor(sce))) +
-  geom_boxplot(outlier.shape = NA) + 
-  geom_point(data = both_psi_refs,
-             aes(x = reorder(factor(comb), psi), y = psi),
-             col = "red", size = 2) +
-  scale_fill_manual(name = "Scenario",
-                    labels = c(1, 2, 3, 4),
-                    values = color_values) +
-  labs(title = expression("Mean posterior estimates of "*psi['0']),
-       x = "Parameter combination",
-       y = expression(psi['0'])) + 
-  theme_bw() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.title.x = element_blank())
-
 # final complete facet_grid
 both_mean_total <- both_mean[, -c(6,7)]
 both_mean_total$comb[both_mean_total$comb %in% c(7, 23:25)] <- 1
@@ -271,16 +280,25 @@ rates_mods$eps1 <- rates_mods$mu1 / rates_mods$lambda1
 rates_mods$eps2 <- rates_mods$mu2 / rates_mods$lambda2
 rates_mods_total <- rates_mods[, -c(2:8)]
 
-rates_mean <- melt(both_mean_total, id.vars = c("comb_seq", "comb", "true_psi"))
+rates_mean_total <- melt(both_mean_total, id.vars = c("comb_seq", "comb", "true_psi"))
 mod_rates_mean <- melt(rates_mods_total, id.vars = c("comb", "true_psi"))
 
-rates_mean <- rates_mean[!(rates_mean$comb == 2 & !(rates_mean$variable %in% c("lambda1", "lambda2"))), ]
+rates_mean <- rates_mean_total[!(rates_mean_total$comb == 2 & !(rates_mean_total$variable %in% c("lambda1", "lambda2"))), ]
 rates_mean <- rates_mean[!(rates_mean$comb == 3 & !(rates_mean$variable %in% c("mu1", "mu2"))), ]
 rates_mean <- rates_mean[!(rates_mean$comb == 4 & !(rates_mean$variable %in% c("q01", "q10"))), ]
 rates_mean$comb_seq <- rates_mean$comb
 rates_mean$comb_seq[rates_mean$comb_seq != 1] <- 2
 
 mod_rates_mean <- mod_rates_mean[!(mod_rates_mean$comb == 4), ]
+
+rates_mean_total$variable <- factor(rates_mean_total$variable, 
+                              levels = unique(rates_mean_total$variable),
+                              labels = c(expression(lambda['0']), expression(lambda['1']),
+                                         expression(mu['0']), expression(mu['1']),
+                                         expression(q['01']), expression(q['10'])))
+rates_mean_total$true_psi <- factor(rates_mean_total$true_psi,
+                              levels = unique(rates_mean_total$true_psi),
+                              labels = fct_inorder(glue('psi*" = {unique(rates_mean_total$true_psi)}"')))
 
 rates_mean$variable <- factor(rates_mean$variable, 
                               levels = unique(rates_mean$variable),
@@ -338,6 +356,16 @@ true_rates <- data.frame(rate = c(rep(0.1, 8), rep(c(0.1, 0.2), 4),
                                   rep(c(1, 4), 8)),
                          true_psi = factor(rep(c(0, 0, 0.01, 0.01, 0.05, 0.05, 0.1, 0.1), 6)))
 
+true_rates_total <- data.frame(rate = c(rep(0.1, 16), rep(c(0.1, 0.2), 8),
+                                        rep(c(0.03, 0.06), 8), rep(0.03, 16),
+                                        rep(0.01, 16), rep(c(0.01, 0.005), 8)),
+                               variable = c(rep("lambda1", 16), rep("lambda2", 16),
+                                            rep("mu1", 16), rep("mu2", 16),
+                                            rep("q01", 16), rep("q10", 16)),
+                               comb = c(rep(c(1, 2), 16), rep(c(1, 3), 16),
+                                        rep(c(1, 4), 16)),
+                               true_psi = factor(rep(c(0, 0, 0.01, 0.01, 0.05, 0.05, 0.1, 0.1), 12)))
+
 mod_true_rates <- data.frame(comb = c(1, 2, 3),
                              tau1 = c(0.1 + 0.03, 0.1 + 0.03, 0.1 + 0.06),
                              tau2 = c(0.1 + 0.03, 0.2 + 0.03, 0.1 + 0.03),
@@ -352,6 +380,15 @@ true_rates$true_psi <- factor(true_rates$true_psi,
                               labels = fct_inorder(glue('psi*" = {unique(true_rates$true_psi)}"')))
 true_rates$variable <- factor(true_rates$variable, 
                               levels = unique(true_rates$variable),
+                              labels = c(expression(lambda['0']), expression(lambda['1']),
+                                         expression(mu['0']), expression(mu['1']),
+                                         expression(q['01']), expression(q['10'])))
+
+true_rates_total$true_psi <- factor(true_rates_total$true_psi,
+                              levels = unique(true_rates_total$true_psi),
+                              labels = fct_inorder(glue('psi*" = {unique(true_rates_total$true_psi)}"')))
+true_rates_total$variable <- factor(true_rates_total$variable, 
+                              levels = unique(true_rates_total$variable),
                               labels = c(expression(lambda['0']), expression(lambda['1']),
                                          expression(mu['0']), expression(mu['1']),
                                          expression(q['01']), expression(q['10'])))
@@ -399,8 +436,46 @@ rates_ridge <- ggplot(rates_mean,
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
-dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/ssetests_chap1/", 
-                           "low_sample_size/paper/figures/rates_ridge_opaque.pdf"),
+rates_ridge
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/rates_ridge_opaque.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+rates_ridge_total <- ggplot(rates_mean_total, 
+                            aes(x = value, 
+                                y = factor(comb_seq), 
+                            fill = factor(comb),
+                            color = factor(comb))) +
+  geom_density_ridges(alpha = 0.75) +
+  geom_vline(data = true_rates_total, aes(xintercept = rate, color = factor(comb)), lwd = 1) +
+  scale_x_continuous(n.breaks = 4, limits = c(0, NA)) +
+  scale_y_discrete(expand = expansion(mult = c(0.1, 0.7))) +
+  scale_fill_manual(name = "Scenario",
+                    labels = c(1, 2, 3, 4),
+                    values = color_values) +
+  scale_color_manual(values = color_values) +
+  #labs(title = expression("Mean rate estimates")) +
+  facet_grid(true_psi ~ variable, 
+             labeller = label_parsed, 
+             scales = "free") +
+  theme_bw() +
+  guides(color = "none") +
+  theme(axis.text.y = element_blank(),  
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_blank(),
+        #axis.text.x = element_blank(),
+        #axis.ticks.x = element_blank(),
+        title = element_text(size = 16),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14),
+        strip.text.y = element_text(size = 14))
+rates_ridge_total
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/rates_ridge_all_opaque.pdf"),
              out.type = "cairo", width = 12.5, height = 7.84)
 
 mod_rates_ridge <- ggplot(mod_rates_mean, 
@@ -436,6 +511,10 @@ mod_rates_ridge <- ggplot(mod_rates_mean,
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+mod_rates_ridge
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/mod_rates_ridge_opaque.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
 
 # make a pce value for rates_mean
 rates_mean$pce <- rep(0, nrow(rates_mean))
@@ -491,6 +570,10 @@ pce_ridge <- ggplot(rates_mean,
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+pce_ridge
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/pce_covs_boxplot.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
 
 # psi plots
 both_psi <- both_mean[both_mean$comb %in% c(23:25, 35:37, 47:49, 59:61), ]
@@ -532,6 +615,10 @@ both_mean_bplot_psi1 <-
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+both_mean_bplot_psi1
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/psi0_boxplot.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
 
 both_mean_bplot_psi2 <- 
   ggplot(both_psi, aes(reorder(factor(comb), true_psi, FUN = mean), psi2,
@@ -559,6 +646,132 @@ both_mean_bplot_psi2 <-
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+both_mean_bplot_psi2
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/psi1_boxplot.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+###
+## testing false positive - BiSSE 
+
+# get log indices for the BiSSE reps
+fp_bisse_refs <- refs_df[which(refs_df[, 3] == 2 & refs_df[, 2] != 4), ]
+fp_bisse_refs$comb <- as.numeric(rownames(fp_bisse_refs))
+
+# add true values to the data frame
+fp_bisse_refs$lambda1 <- 0.1
+fp_bisse_refs$lambda2 <- c(0.1, 0.2)[(fp_bisse_refs$parComb == 2) + 1]
+fp_bisse_refs$mu1 <- c(0.03, 0.06)[(fp_bisse_refs$parComb == 3) + 1]
+fp_bisse_refs$mu2 <- 0.03
+
+# make data frames for 95% CI and median, one for mean, and one for coverage
+fp_bisse_mode <- data.frame(matrix(nrow = 0, ncol = 4))
+
+# iterate through logs
+for (i in 1:nrow(fp_bisse_refs)) {
+  # get ref
+  ref <- fp_bisse_refs$comb[i]
+  
+  # and reps
+  for (j in 1:n_reps) {
+    # get log
+    log <- logs[[ref]][[j]]
+    
+    # apply burnout and keep only lambda and pi0
+    log <- log[(nrow(log)/5):nrow(log), c(1:2, 5)]
+    
+    # modes
+    modes <- unlist(lapply(1:ncol(log), function(x) 
+      density(log[, x])$x[which.max(density(log[, x])$y)]))
+    
+    # sub pi0 for a mean
+    modes[3] <- mean(log[, 3])
+    
+    # pvalue
+    post_prob <- mean(log[, 2] > log[, 1])
+    
+    # add modes to data frame
+    fp_bisse_mode <- rbind(fp_bisse_mode, c(ref, modes, post_prob))
+  }
+  
+  colnames(fp_bisse_mode) <- c("comb", "lambda1", "lambda2", "pi0", "post_prob")
+}
+
+# boxplot of modes
+fp_bisse_mode_lambda_bplot <- ggplot(fp_bisse_mode, aes(factor(comb), lambda2 - lambda1)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  labs(x = "Parameter combination") +
+  theme_bw()
+
+# change df a bit
+fp_bisse_mode <- fp_bisse_mode[fp_bisse_mode$comb %in% 7:14, ]
+fp_bisse_mode$parComb <- unlist(lapply(1:nrow(fp_bisse_mode), 
+                                       function(x) 
+                                         fp_bisse_refs$parComb[fp_bisse_refs$comb == fp_bisse_mode$comb[x]]))
+fp_bisse_mode$parComb <- factor(fp_bisse_mode$parComb, levels = c(2, 1))
+fp_bisse_mode$traitComb <- unlist(lapply(1:nrow(fp_bisse_mode), 
+                                         function(x) 
+                                           fp_bisse_refs$traitComb[fp_bisse_refs$comb == fp_bisse_mode$comb[x]]))
+
+# make a labeller for facet_grid
+trait_labs <- c("Effect trait", "q = 0.01", "q = 0.1", "q = 1")
+names(trait_labs) <- 1:4
+par_labs <- c("q = 0.01", "No shifts")
+names(par_labs) <- 2:1
+
+# plot facet_grid
+fp_bisse_lambda <- 
+  ggplot(fp_bisse_mode, 
+         aes(post_prob)) +
+  geom_histogram(aes(y = after_stat(density) * 0.1, 
+                     fill = parComb, color = parComb), binwidth = 0.1) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#56B4E9", "#E69F00")) +
+  scale_color_manual(values = c("#0072B2", "#D55E00")) +
+  facet_grid(parComb ~ traitComb, 
+             labeller = labeller(parComb = par_labs, 
+                                 traitComb = trait_labs)) + 
+  labs(title = expression("Posterior probability of "*lambda['1']*" > "*lambda['0']*", "*psi*" = "*0*" (extant taxa only)"),
+       x = "Posterior probability", 
+       y = "Proportion of simulations") +
+  theme_bw() +
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14),
+        strip.text.y = element_text(size = 14))
+fp_bisse_lambda
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_lambda_extant.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+fp_bisse_pi <- 
+  ggplot(fp_bisse_mode, 
+         aes(pi0)) +
+  geom_histogram(aes(y = after_stat(density) * 0.05, 
+                     fill = parComb, color = parComb), binwidth = 0.05) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#56B4E9", "#E69F00")) +
+  scale_color_manual(values = c("#0072B2", "#D55E00")) +
+  facet_grid(parComb ~ traitComb, 
+             labeller = labeller(parComb = par_labs, 
+                                 traitComb = trait_labs)) + 
+  labs(title = expression("Mean posterior estimate of "*pi['0']*", "*psi*" = "*0.01),
+       x = "Posterior probability", 
+       y = "Proportion of simulations") +
+  theme_bw() +
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14),
+        strip.text.y = element_text(size = 14))
+fp_bisse_pi
 
 ###
 ## testing false positive - BiSSE + FBD
@@ -587,12 +800,15 @@ for (i in 1:nrow(fp_both_refs)) {
     # get log
     log <- logs[[ref]][[j]]
     
-    # apply burnout and take out pi
-    log <- log[(nrow(log)/5):nrow(log), 1:6]
+    # apply burnout and take out q
+    log <- log[(nrow(log)/5):nrow(log), 1:7]
     
     # modes
     modes <- unlist(lapply(1:ncol(log), function(x) 
       density(log[, x])$x[which.max(density(log[, x])$y)]))
+    
+    # substitute mean for pi0
+    modes[7] <- mean(log[, 7])
     
     # Bayes factor
     lambda_post_prob <- mean(log[, 2] > log[, 1]) #/ (1 - mean(log[, 2] > log[, 1]))
@@ -604,7 +820,7 @@ for (i in 1:nrow(fp_both_refs)) {
   }
   
   colnames(fp_both_mode) <- c("comb", "lambda1", "lambda2", "mu1", "mu2",
-                              "psi1", "psi2",
+                              "psi1", "psi2", "pi0",
                               "lambda_post_prob", "mu_post_prob")
 }
 
@@ -633,53 +849,7 @@ names(par_labs) <- 2:1
 fp_both_lambda_low <- 
   ggplot(fp_both_mode_lambda[fp_both_mode_lambda$psiComb == 1, ], 
          aes(lambda_post_prob)) +
-  geom_histogram(aes(y = stat(count / sum(count)), 
-                     fill = parComb, color = parComb), binwidth = 0.1) +
-  scale_fill_manual(values = c("#56B4E9", "#E69F00")) +
-  scale_color_manual(values = c("#0072B2", "#D55E00")) +
-  facet_grid(parComb ~ traitComb, 
-             labeller = labeller(parComb = par_labs, 
-                                 traitComb = trait_labs)) + 
-  labs(#title = expression("Posterior probability of "*lambda['1']*" > "*lambda['0']*", "*psi*" = "*0.01),
-    x = "Posterior probability", 
-    y = "Proportion of simulations") +
-  theme_bw() +
-  theme(legend.position = "none",
-        title = element_text(size = 16),
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.title = element_text(size = 14),
-        strip.text.x = element_text(size = 14),
-        strip.text.y = element_text(size = 14))
-
-fp_both_lambda_mid <- 
-  ggplot(fp_both_mode_lambda[fp_both_mode_lambda$psiComb == 2, ], 
-         aes(lambda_post_prob)) +
-  geom_histogram(aes(y = stat(count / sum(count)), 
-                     fill = parComb, color = parComb), binwidth = 0.1) +
-  scale_fill_manual(values = c("#56B4E9", "#E69F00")) +
-  scale_color_manual(values = c("#0072B2", "#D55E00")) +
-  facet_grid(parComb ~ traitComb, 
-             labeller = labeller(parComb = par_labs, 
-                                 traitComb = trait_labs)) + 
-  labs(#title = expression("Posterior probability of "*lambda['1']*" > "*lambda['0']*", "*psi*" = "*0.05),
-    x = "Posterior probability", 
-    y = "Proportion of simulations") +
-  theme_bw() +
-  theme(legend.position = "none",
-        title = element_text(size = 16),
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        legend.text = element_text(size = 12),
-        legend.title = element_text(size = 14),
-        strip.text.x = element_text(size = 14),
-        strip.text.y = element_text(size = 14))
-
-fp_both_lambda_high <- 
-  ggplot(fp_both_mode_lambda[fp_both_mode_lambda$psiComb == 3, ], 
-         aes(lambda_post_prob)) +
-  geom_histogram(aes(y = stat(count / sum(count)), 
+  geom_histogram(aes(y = after_stat(density) * 0.1, 
                      fill = parComb, color = parComb), binwidth = 0.1) +
   scale_fill_manual(name = "Scenario",
                     values = c("#56B4E9", "#E69F00")) +
@@ -687,7 +857,7 @@ fp_both_lambda_high <-
   facet_grid(parComb ~ traitComb, 
              labeller = labeller(parComb = par_labs, 
                                  traitComb = trait_labs)) + 
-  labs(#title = expression("Posterior probability of "*lambda['1']*" > "*lambda['0']*", "*psi*" = "*0.1),
+  labs(title = expression("Posterior probability of "*lambda['1']*" > "*lambda['0']*", "*psi*" = "*0.01),
     x = "Posterior probability", 
     y = "Proportion of simulations") +
   theme_bw() +
@@ -699,15 +869,103 @@ fp_both_lambda_high <-
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+fp_both_lambda_low
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_lambda_fossil001.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+fp_both_lambda_mid <- 
+  ggplot(fp_both_mode_lambda[fp_both_mode_lambda$psiComb == 2, ], 
+         aes(lambda_post_prob)) +
+  geom_histogram(aes(y = stat(density) * 0.1, 
+                     fill = parComb, color = parComb), binwidth = 0.1) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#56B4E9", "#E69F00")) +
+  scale_color_manual(values = c("#0072B2", "#D55E00")) +
+  facet_grid(parComb ~ traitComb, 
+             labeller = labeller(parComb = par_labs, 
+                                 traitComb = trait_labs)) + 
+  labs(title = expression("Posterior probability of "*lambda['1']*" > "*lambda['0']*", "*psi*" = "*0.05),
+    x = "Posterior probability", 
+    y = "Proportion of simulations") +
+  theme_bw() +
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14),
+        strip.text.y = element_text(size = 14))
+fp_both_lambda_mid
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_lambda_fossil005.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+fp_both_lambda_high <- 
+  ggplot(fp_both_mode_lambda[fp_both_mode_lambda$psiComb == 3, ], 
+         aes(lambda_post_prob)) +
+  geom_histogram(aes(y = after_stat(density) * 0.1, 
+                     fill = parComb, color = parComb), binwidth = 0.1) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#56B4E9", "#E69F00")) +
+  scale_color_manual(values = c("#0072B2", "#D55E00")) +
+  facet_grid(parComb ~ traitComb, 
+             labeller = labeller(parComb = par_labs, 
+                                 traitComb = trait_labs)) + 
+  labs(title = expression("Posterior probability of "*lambda['1']*" > "*lambda['0']*", "*psi*" = "*0.1*" (extant and fossil taxa)"),
+    x = "Posterior probability", 
+    y = "Proportion of simulations") +
+  theme_bw() +
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14),
+        strip.text.y = element_text(size = 14))
+fp_both_lambda_high
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_lambda_fossil01.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+fp_both_pi_high <- 
+  ggplot(fp_both_mode_lambda[fp_both_mode_lambda$psiComb == 3, ], 
+         aes(pi0)) +
+  geom_histogram(aes(y = after_stat(density) * 0.05, 
+                     fill = parComb, color = parComb), binwidth = 0.05) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#56B4E9", "#E69F00")) +
+  scale_color_manual(values = c("#0072B2", "#D55E00")) +
+  facet_grid(parComb ~ traitComb, 
+             labeller = labeller(parComb = par_labs, 
+                                 traitComb = trait_labs)) + 
+  labs(title = expression("Mean posterior estimate of "*pi['0']*", "*psi*" = "*0.1),
+       x = "Posterior estimate", 
+       y = "Proportion of simulations") +
+  theme_bw() +
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14),
+        strip.text.y = element_text(size = 14))
+fp_both_pi_high
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_pi0.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
 
 ## mu
 # change df a bit
-fp_both_mode_mu <- fp_both_mode[fp_both_mode$comb %in% 23:46, ]
+fp_both_mode_mu <- fp_both_mode[fp_both_mode$comb %in% c(23:34, 47:58), ]
 fp_both_mode_mu$parComb <- unlist(lapply(1:nrow(fp_both_mode_mu), 
                                          function(x) 
                                            fp_both_refs$parComb[fp_both_refs$comb == fp_both_mode_mu$comb[x]]))
 fp_both_mode_mu$parComb <- factor(fp_both_mode_mu$parComb, 
-                                  levels = c(2, 1))
+                                  levels = c(3, 1))
 fp_both_mode_mu$traitComb <- unlist(lapply(1:nrow(fp_both_mode_mu), 
                                            function(x) 
                                              fp_both_refs$traitComb[fp_both_refs$comb == fp_both_mode_mu$comb[x]]))
@@ -719,74 +977,297 @@ fp_both_mode_mu$psiComb <- unlist(lapply(1:nrow(fp_both_mode_mu),
 trait_labs <- c("Effect trait", "q = 0.01", "q = 0.1", "q = 1")
 names(trait_labs) <- 1:4
 par_labs <- c("q = 0.01", "No shifts")
-names(par_labs) <- 2:1
+names(par_labs) <- c(3, 1)
 
 # plot facet_grid
 fp_both_mu_low <- 
   ggplot(fp_both_mode_mu[fp_both_mode_mu$psiComb == 1, ], 
          aes(mu_post_prob)) +
-  geom_histogram(aes(y = stat(count / sum(count)), 
+  geom_histogram(aes(y = after_stat(density) * 0.1, 
                      fill = parComb, color = parComb), binwidth = 0.1) +
-  scale_fill_manual(values = c("#009E73", "#56B4E9")) +
-  scale_color_manual(values = c("black", "#0072B2")) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#009E73", "#E69F00")) +
+  scale_color_manual(values = c("black", "#D55E00")) +
   facet_grid(parComb ~ traitComb, 
              labeller = labeller(parComb = par_labs, 
                                  traitComb = trait_labs)) + 
-  labs(#title = expression("Posterior probability of "*mu['0']*" > "*mu['1']*", "*psi*" = "*0.01),
+  labs(title = expression("Posterior probability of "*mu['0']*" > "*mu['1']*", "*psi*" = "*0.01),
     x = "Posterior probability", 
     y = "Proportion of simulations") +
   theme_bw() +
-  theme(legend.position = "none",
-        title = element_text(size = 16),
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
         axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
         legend.text = element_text(size = 12),
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+fp_both_mu_low
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_mu_fossil001.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
 
 fp_both_mu_mid <- 
   ggplot(fp_both_mode_mu[fp_both_mode_mu$psiComb == 2, ], 
          aes(mu_post_prob)) +
-  geom_histogram(aes(y = stat(count / sum(count)), 
+  geom_histogram(aes(y = after_stat(density) * 0.1, 
                      fill = parComb, color = parComb), binwidth = 0.1) +
-  scale_fill_manual(values = c("#009E73", "#56B4E9")) +
-  scale_color_manual(values = c("black", "#0072B2")) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#009E73", "#E69F00")) +
+  scale_color_manual(values = c("black", "#D55E00")) +
   facet_grid(parComb ~ traitComb, 
              labeller = labeller(parComb = par_labs, 
                                  traitComb = trait_labs)) + 
-  labs(#title = expression("Posterior probability of "*mu['0']*" > "*mu['1']*", "*psi*" = "*0.05),
+  labs(title = expression("Posterior probability of "*mu['0']*" > "*mu['1']*", "*psi*" = "*0.05),
     x = "Posterior probability", 
     y = "Proportion of simulations") +
   theme_bw() +
-  theme(legend.position = "none",
-        title = element_text(size = 16),
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
         axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
         legend.text = element_text(size = 12),
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+fp_both_mu_mid
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_mu_fossil005.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
 
 fp_both_mu_high <- 
   ggplot(fp_both_mode_mu[fp_both_mode_mu$psiComb == 3, ], 
          aes(mu_post_prob)) +
-  geom_histogram(aes(y = stat(count / sum(count)), 
+  geom_histogram(aes(y = after_stat(density) * 0.1, 
                      fill = parComb, color = parComb), binwidth = 0.1) +
-  scale_fill_manual(values = c("#009E73", "#56B4E9")) +
-  scale_color_manual(values = c("black", "#0072B2")) +
+  scale_fill_manual(name = "Scenario",
+                    values = c("#009E73", "#E69F00")) +
+  scale_color_manual(values = c("black", "#D55E00")) +
   facet_grid(parComb ~ traitComb, 
              labeller = labeller(parComb = par_labs, 
                                  traitComb = trait_labs)) + 
-  labs(#title = expression("Posterior probability of "*mu['0']*" > "*mu['1']*", "*psi*" = "*0.1),
+  labs(title = expression("Posterior probability of "*mu['0']*" > "*mu['1']*", "*psi*" = "*0.1*" (extant and fossil data)"),
     x = "Posterior probability", 
     y = "Proportion of simulations") +
   theme_bw() +
-  theme(legend.position = "none",
-        title = element_text(size = 16),
+  guides(color = "none") +
+  theme(title = element_text(size = 16),
         axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
         legend.text = element_text(size = 12),
         legend.title = element_text(size = 14),
         strip.text.x = element_text(size = 14),
         strip.text.y = element_text(size = 14))
+fp_both_mu_high
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/fp_mu_fossil01.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+###
+## ROC curves
+
+# data frame to hold ROC data
+roc <- data.frame(matrix(nrow = 0, ncol = 4))
+
+# iterate through 4 psi values
+for (i in 1:4) {
+  # if i is 1, use bisse results
+  if (i == 1) {
+    # get post probs
+    bisse_post_probs <- fp_bisse_mode[fp_bisse_mode$comb %in% 11:14, c(1,5)]
+    
+    # get post probs for comb 11 (true trait)
+    bisse_pp_real <- bisse_post_probs[bisse_post_probs$comb == 11, 2]
+    
+    # get the same for combs 12-14 (neutral traits)
+    bisse_pp_low <- bisse_post_probs[bisse_post_probs$comb == 12, 2]
+    bisse_pp_mid <- bisse_post_probs[bisse_post_probs$comb == 13, 2]
+    bisse_pp_high <- bisse_post_probs[bisse_post_probs$comb == 14, 2]
+    
+    # for each value 0.01 to 1
+    for (p in seq(0.01, 1, 0.01)) {
+      # get simulations with true positive greater than p
+      lp <- sum(bisse_pp_real >= p) / 100
+      
+      # for these sims, calculate false positive rates
+      fp_low <- sum(bisse_pp_low >= p) / 100
+      fp_mid <- sum(bisse_pp_mid >= p) / 100
+      fp_high <- sum(bisse_pp_high >= p) / 100
+      
+      # add to data frame
+      roc <- rbind(roc, c(lp, fp_low, fp_mid, fp_high))
+    }
+  } else {
+    # get post probs
+    lambda_post_probs <- fp_both_mode_lambda[fp_both_mode_lambda$psiComb == (i - 1), 9:13]
+    mu_post_probs <- fp_both_mode_mu[fp_both_mode_mu$psiComb == (i - 1), 9:13]
+    
+    # get post probs for lambda and mu (true trait)
+    lambda_pp_real <- lambda_post_probs[lambda_post_probs$parComb == 2 &
+                                          lambda_post_probs$traitComb == 1, 1]
+    mu_pp_real <- mu_post_probs[mu_post_probs$parComb == 3 & 
+                                  mu_post_probs$traitComb == 1, 2]
+    
+    # get the same for neutral traits
+    lambda_pp_low <- lambda_post_probs[lambda_post_probs$parComb == 2 &
+                                          lambda_post_probs$traitComb == 2, 1]
+    lambda_pp_mid <- lambda_post_probs[lambda_post_probs$parComb == 2 &
+                                          lambda_post_probs$traitComb == 3, 1]
+    lambda_pp_high <- lambda_post_probs[lambda_post_probs$parComb == 2 &
+                                          lambda_post_probs$traitComb == 4, 1]
+    mu_pp_low <- mu_post_probs[mu_post_probs$parComb == 3 & 
+                                  mu_post_probs$traitComb == 2, 2]
+    mu_pp_mid <- mu_post_probs[mu_post_probs$parComb == 3 & 
+                                  mu_post_probs$traitComb == 3, 2]
+    mu_pp_high <- mu_post_probs[mu_post_probs$parComb == 3 & 
+                                  mu_post_probs$traitComb == 4, 2]
+    
+    # make a data frame to hold all the lps and fps
+    positives_df <- data.frame(matrix(nrow = 0, ncol = 8))
+    
+    # for each value 0.01 to 1
+    for (p in seq(0.01, 1, 0.01)) {
+      # get simulations with true positive greater than p
+      lambda_lp <- sum(lambda_pp_real >= p) / 100
+      mu_lp <- sum(mu_pp_real >= p) / 100
+      
+      # for these sims, calculate false positive rates
+      lambda_fp_low <- sum(lambda_pp_low >= p) / 100
+      lambda_fp_mid <- sum(lambda_pp_mid >= p) / 100
+      lambda_fp_high <- sum(lambda_pp_high >= p) / 100
+      
+      mu_fp_low <- sum(mu_pp_low >= p) / 100
+      mu_fp_mid <- sum(mu_pp_mid >= p) / 100
+      mu_fp_high <- sum(mu_pp_high >= p) / 100
+      
+      # add to positives_df
+      positives_df <- rbind(positives_df, c(lambda_lp, lambda_fp_low,
+                                            lambda_fp_mid, lambda_fp_high,
+                                            mu_lp, mu_fp_low,
+                                            mu_fp_mid, mu_fp_high))
+    }
+    
+    # add positives_df to roc
+    roc <- cbind(roc, positives_df)
+  }
+}
+
+# name columns
+colnames(roc) <- c("true_pos", "lambda_psi0_low", "lambda_psi0_mid",
+                   "lambda_psi0_high", "true_pos", "lambda_psi1_low",
+                   "lambda_psi1_mid", "lambda_psi1_high", "true_pos",
+                   "mu_psi1_low", "mu_psi1_mid", "mu_psi1_high",
+                   "true_pos", "lambda_psi2_low", "lambda_psi2_mid",
+                   "lambda_psi2_high", "true_pos", "mu_psi2_low",
+                   "mu_psi2_mid", "mu_psi2_high", "true_pos",
+                   "lambda_psi3_low", "lambda_psi3_mid", "lambda_psi3_high",
+                   "true_pos", "mu_psi3_low", "mu_psi3_mid", "mu_psi3_high")
+
+# select each set
+roc_lambda_psi0 <- melt(roc[, 1:4], id.vars = "true_pos")
+roc_lambda_psi1 <- melt(roc[, 5:8], id.vars = "true_pos")
+roc_mu_psi1 <- melt(roc[, 9:12], id.vars = "true_pos")
+roc_lambda_psi2 <- melt(roc[, 13:16], id.vars = "true_pos")
+roc_mu_psi2 <- melt(roc[, 17:20], id.vars = "true_pos")
+roc_lambda_psi3 <- melt(roc[, 21:24], id.vars = "true_pos")
+roc_mu_psi3 <- melt(roc[, 25:28], id.vars = "true_pos")
+
+# function to add rows there
+add_psi_q <- function(df, psi) {
+  df$true_psi <- psi
+  df$q <- c(rep(0.01, 100), rep(0.1, 100), rep(1, 100))
+  
+  # change label of variable to just lambda or mu
+  df$variable <- gsub("_[a-z0-9]*", "", df$variable)
+  
+  df
+}
+
+# add it to all of them
+roc_lambda_psi0 <- add_psi_q(roc_lambda_psi0, 0)
+roc_lambda_psi1 <- add_psi_q(roc_lambda_psi1, 0.01)
+roc_mu_psi1 <- add_psi_q(roc_mu_psi1, 0.01)
+roc_lambda_psi2 <- add_psi_q(roc_lambda_psi2, 0.05)
+roc_mu_psi2 <- add_psi_q(roc_mu_psi2, 0.05)
+roc_lambda_psi3 <- add_psi_q(roc_lambda_psi3, 0.1)
+roc_mu_psi3 <- add_psi_q(roc_mu_psi3, 0.1)
+
+# rbind all the melts
+roc_plot <- rbind(roc_lambda_psi0, roc_lambda_psi1, roc_mu_psi1, 
+                  roc_lambda_psi2, roc_mu_psi2, roc_lambda_psi3,
+                  roc_mu_psi3)
+
+# make the labels all good
+roc_plot$true_psi <- factor(roc_plot$true_psi,
+                                    levels = unique(roc_plot$true_psi),
+                                    labels = fct_inorder(glue('psi*" = {unique(roc_plot$true_psi)}"')))
+roc_plot$q <- factor(roc_plot$q,
+                     levels = unique(roc_plot$q),
+                     labels = fct_inorder(glue('q*" = {unique(roc_plot$q)}"')))
+roc_plot$variable <- factor(roc_plot$variable, 
+                                    levels = unique(roc_plot$variable),
+                                    labels =  c(expression(lambda), 
+                                                expression(mu)))
+
+
+# plot the curve
+roc <- ggplot(roc_plot, mapping = aes(x = value, y = true_pos, 
+                               color = variable)) +
+  geom_line() +
+  geom_abline(slope = 1) +
+  scale_color_manual(name = "Rate",
+                     labels = c(expression(lambda), expression(mu)),
+                     values = c("#56B4E9", "#009E73")) +
+  facet_grid(true_psi ~ q, 
+             labeller = label_parsed, 
+             scales = "free") +
+  scale_x_continuous(limits = c(0, 1), 
+                     labels = function(x) format(x, nsmall = 2)) +
+  scale_y_continuous(limits = c(0, 1), 
+                     labels = function(x) format(x, nsmall = 2)) +
+  labs(x = "False-positive", y = "True positive") +
+  theme_bw() +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14),
+        strip.text.y = element_text(size = 14))
+roc
+dev.copy2pdf(file = paste0("/Users/petrucci/Documents/research/fbdsse/", 
+                           "paper/figures/roc_plot.pdf"),
+             out.type = "cairo", width = 12.5, height = 7.84)
+
+###
+## make fossils number table
+
+# package
+library(xtable)
+
+# get specific columns in refs_df 
+refs_fnumber <- refs_df[fossil_number$ref, 1:2]
+
+# get true values of each rate for these refs
+rates_fnumber <- data.frame(lambda0 = rep(0.1, 12),
+                            lambda1 = c(0.1, 0.2)[(refs_fnumber[, 2] == 2) + 1],
+                            mu0 = c(0.03, 0.06)[(refs_fnumber[, 2] == 3) + 1],
+                            mu1 = rep(0.03, 12),
+                            q01 = rep(0.01, 12),
+                            q10 = c(0.01, 0.005)[(refs_fnumber[, 2] == 4) + 1],
+                            psi = c(0.01, 0.05, 0.1)[refs_fnumber[, 1]])
+
+# final table
+fossil_number <- cbind(rates_fnumber, fossil_number[, -c(1, 5)])
+
+# name columns
+colnames(fossil_number) <- c(expression(lambda['0']), expression(lambda['1']),
+                             expression(mu['0']), expression(mu['1']),
+                             expression(q['01']), expression(q['10']),
+                             expression(psi),
+                             "Mean number of fossils",
+                             "Mean number of species",
+                             "Mean duration of simulation")
+
+# save table
+xtable(fossil_number, type = "latex", file = paste0(base_dir, "paper/fossil_number.tex"))
